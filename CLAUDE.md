@@ -34,6 +34,7 @@ Everything runs on the Tk main loop via `root.after` timers — no threads:
 ## Deployment (Raspberry Pi)
 
 - `setup_gui_rpi.sh` — one-shot provisioning: apt packages, AnyDesk (with unattended password), `.venv` + `requirements.txt`, forces X11 (not Wayland), desktop autologin, disables screen blanking, and creates `~/.config/autostart/kiosk.desktop` that runs `run.sh` in an lxterminal.
+- `setup_rfid_reader.sh` (run once with sudo) + `rfid_reader_watchdog.sh` — the RFID reader is an off-the-shelf Arduino Leonardo (USB keyboard, firmware we can't change) that sometimes freezes (stops beeping). The setup disables USB autosuspend (cmdline + udev rule), writes `/etc/default/rfid-reader` (reader VID:PID, reset interval), and installs `rfid-reader-watchdog.timer`, which runs the watchdog every minute as root: logs under-voltage, power-cycles the reader with `uhubctl` if it vanishes from USB, and preventively every `RESET_INTERVAL_MIN` minutes when no scan happened in the last `IDLE_SECONDS`. Log: `rfid_reader_watchdog.log`.
 - On the Pi the app runs with the global system `python3` (`run.sh`, the systemd unit); the `.venv` the setup script creates is intentionally unused at runtime.
 - `rfid_display.service` — alternative systemd unit (user `rentgen`, `/home/rentgen/rentgen.py`, `DISPLAY=:0`, `Restart=always`). Its first line is missing the leading `[` of `[Unit]`.
 - `Raspberry_Pi_RFID_Kiosk_Setup-v2.pdf` and `autorun a script in rasbery pi.docx` are setup guides.
