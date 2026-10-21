@@ -12,7 +12,6 @@ import threading
 import tkinter as tk
 from datetime import datetime
 
-import pygame
 from PIL import Image, ImageTk
 import evdev
 from evdev import InputDevice, ecodes
@@ -20,7 +19,6 @@ from evdev import InputDevice, ecodes
 BASE_DIR = Path(__file__).resolve().parent
 BACKGROUND_IMAGE = BASE_DIR / "background.png"
 SCAN_IMAGE = BASE_DIR / "scan_result.png"
-SOUND_FILE = BASE_DIR / "beep.mp3"
 LOG_FILE_PATH = BASE_DIR / "rfid_log.txt"  
 DIAGNOSTIC_LOG = BASE_DIR / "rfid_diagnostics.log"
 DISPLAY_TIME = 15000  # milliseconds
@@ -67,13 +65,6 @@ class RFIDUsbApp:
         self.root.title("RFID USB Kiosk")
         self.log_filename = LOG_FILE_PATH
         self.root.report_callback_exception = self.report_callback_exception
-
-        self.scan_sound = None
-        try:
-            pygame.mixer.init()
-            self.scan_sound = pygame.mixer.Sound(str(SOUND_FILE))
-        except Exception:
-            logger.exception("Audio initialization/sound loading failed; continuing silently")
 
         self.root.attributes("-fullscreen", True)
         self.canvas = tk.Canvas(root, highlightthickness=0)
@@ -184,11 +175,6 @@ class RFIDUsbApp:
 
     def process_valid_scan(self, card_id):
         """פונקציה זו רצה בתוך ה-Thread הגרפי הראשי ולכן היא תתניע את המסכים"""
-        if self.scan_sound is not None:
-            try:
-                self.scan_sound.play()
-            except Exception:
-                logger.exception("Could not play scan sound")
         self.log_card_scan(card_id)
         self.show_scan_image()
 
@@ -246,8 +232,3 @@ if __name__ == "__main__":
     except Exception:
         logger.exception("Uncaught fatal error")
         raise
-    finally:
-        try:
-            pygame.mixer.quit()
-        except Exception:
-            pass

@@ -11,13 +11,11 @@ import time
 import tkinter as tk
 from datetime import datetime
 
-import pygame
 from PIL import Image, ImageTk
 
 BASE_DIR = Path(__file__).resolve().parent
 BACKGROUND_IMAGE = BASE_DIR / "background.png"
 SCAN_IMAGE = BASE_DIR / "scan_result.png"
-SOUND_FILE = BASE_DIR / "beep.mp3"
 LOG_FILE_PATH = BASE_DIR / "rfid_log.txt"  
 DIAGNOSTIC_LOG = BASE_DIR / "rfid_diagnostics.log"
 DISPLAY_TIME = 15000  # milliseconds
@@ -61,13 +59,6 @@ class RFIDUsbApp:
         self.root.title("RFID USB Kiosk")
         self.log_filename = LOG_FILE_PATH
         self.root.report_callback_exception = self.report_callback_exception
-
-        self.scan_sound = None
-        try:
-            pygame.mixer.init()
-            self.scan_sound = pygame.mixer.Sound(str(SOUND_FILE))
-        except Exception:
-            logger.exception("Audio initialization/sound loading failed; continuing silently")
 
         self.root.attributes("-fullscreen", True)
         
@@ -179,11 +170,6 @@ class RFIDUsbApp:
             card_id = self.card_buffer
             self.reset_card_buffer("completed scan")
             logger.info("RFID scan completed (length=%d)", len(card_id))
-            if self.scan_sound is not None:
-                try:
-                    self.scan_sound.play()
-                except Exception:
-                    logger.exception("Could not play scan sound")
             self.log_card_scan(card_id)
             self.show_scan_image()
             return
@@ -253,8 +239,3 @@ if __name__ == "__main__":
     except Exception:
         logger.exception("Uncaught fatal error")
         raise
-    finally:
-        try:
-            pygame.mixer.quit()
-        except Exception:
-            pass
