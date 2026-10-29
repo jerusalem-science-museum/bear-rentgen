@@ -28,7 +28,7 @@ Everything runs on the Tk main loop via `root.after` timers — no threads:
 - **Card buffering:** printable chars accumulate in `card_buffer`; Enter completes a scan. The buffer is discarded on a 2 s inter-key timeout (`CARD_INPUT_TIMEOUT`), on exceeding `MAX_CARD_LENGTH`, or when focus is regained (to drop half-typed input).
 - **Focus recovery:** losing focus means lost scans, so `check_focus` (every 1 s) and `heartbeat` (every 5 s) call `request_focus()` (lift + `focus_force` + canvas `focus_set`). The canvas has `takefocus=1` for this reason.
 - **Scan display:** a new scan while the result is showing restarts the 15 s timer (intentional, so a tag left on the reader can't lock the screen). `heartbeat` force-resets the display if it has been showing >20 s.
-- **Logging:** two separate outputs — `rfid_log.txt` (plain append, one line per scan, the museum's data) and `rfid_diagnostics.log` (rotating 1 MB × 3, plus stderr) for operational diagnostics including HEARTBEAT lines. `faulthandler` dumps tracebacks on crash and on `SIGUSR1` (`kill -USR1 <pid>`) for diagnosing hangs.
+- **Logging:** two separate outputs — `rfid_log.txt` (plain append, one line per scan, the museum's data) and `rfid_diagnostics.log` (rotating 1 MB × 3; falls back to stderr only if the file can't be opened) for operational diagnostics including HEARTBEAT lines. `faulthandler` dumps tracebacks to `rfid_crash.log` on crash and on `SIGUSR1` (`kill -USR1 <pid>`) for diagnosing hangs.
 - All paths resolve relative to the script directory (`BASE_DIR`), so the working directory doesn't matter. Images are resized to the screen resolution at startup.
 
 ## Deployment (Raspberry Pi)

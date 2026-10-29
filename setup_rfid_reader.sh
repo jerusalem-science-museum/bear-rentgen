@@ -154,7 +154,10 @@ cat > "$UNIT_DIR/rfid-reader-watchdog.timer" << EOF
 Description=Run the RFID reader watchdog every minute
 
 [Timer]
+# Monotonic timers (not wall-clock/cron), so NTP time jumps on the RTC-less Pi
+# don't matter. OnActiveSec makes it start right after install, not only on boot.
 OnBootSec=2min
+OnActiveSec=1min
 OnUnitActiveSec=1min
 AccuracySec=10s
 

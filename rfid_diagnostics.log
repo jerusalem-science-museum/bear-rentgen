@@ -6332,3 +6332,19 @@ FileNotFoundError: No such file or directory: '/home/rentgen/Dubi/beep.mp3'.
 2026-10-21 11:34:57,535 INFO HEARTBEAT focus=.!canvas showing_scan=False scan_elapsed=0.0s buffer_len=0
 2026-10-21 11:35:02,537 INFO HEARTBEAT focus=.!canvas showing_scan=False scan_elapsed=0.0s buffer_len=0
 2026-10-21 11:35:03,294 INFO Escape pressed; closing kiosk
+2026-10-21 12:03:41,709 ERROR Audio initialization/sound loading failed; continuing silently
+Traceback (most recent call last):
+  File "C:\Users\arieg\Documents\Projects\Science Museum Code\bear-rentgen\rentgen.py", line 68, in __init__
+    self.scan_sound = pygame.mixer.Sound(str(SOUND_FILE))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: No such file or directory: 'C:\Users\arieg\Documents\Projects\Science Museum Code\bear-rentgen\beep.mp3'.
+2026-10-21 12:03:42,937 INFO Kiosk started; display 1280x720
+2026-10-21 12:03:44,709 WARNING Discarding incomplete RFID input (completed scan, length=3)
+2026-10-21 12:03:44,709 INFO RFID scan completed (length=3)
+2026-10-21 12:03:44,710 INFO Displaying scan result for 15000 milliseconds
+2026-10-21 12:03:47,422 INFO Escape pressed; closing kiosk
+2026-10-21 12:05:29,032 INFO Kiosk started; display 1280x720
+2026-10-21 12:05:32,160 WARNING Discarding incomplete RFID input (completed scan, length=3)
+2026-10-21 12:05:32,160 INFO RFID scan completed (length=3)
+2026-10-21 12:05:32,160 INFO Displaying scan result for 15000 milliseconds
+2026-10-21 12:05:33,060 INFO Escape pressed; closing kiosk

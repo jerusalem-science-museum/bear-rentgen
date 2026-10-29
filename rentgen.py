@@ -18,6 +18,7 @@ BACKGROUND_IMAGE = BASE_DIR / "background.png"
 SCAN_IMAGE = BASE_DIR / "scan_result.png"
 LOG_FILE_PATH = BASE_DIR / "rfid_log.txt"  
 DIAGNOSTIC_LOG = BASE_DIR / "rfid_diagnostics.log"
+CRASH_LOG = BASE_DIR / "rfid_crash.log"
 DISPLAY_TIME = 15000  # milliseconds
 HEARTBEAT_TIME = 5000  # milliseconds
 CARD_INPUT_TIMEOUT = 2000  # milliseconds
@@ -31,10 +32,6 @@ def configure_logging():
     logger.propagate = False
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
 
-    stream = logging.StreamHandler(sys.stderr)
-    stream.setFormatter(formatter)
-    logger.addHandler(stream)
-
     try:
         rotating = RotatingFileHandler(
             DIAGNOSTIC_LOG, maxBytes=1_000_000, backupCount=3, encoding="utf-8"
@@ -42,15 +39,30 @@ def configure_logging():
         rotating.setFormatter(formatter)
         logger.addHandler(rotating)
     except OSError as exc:
+        # Fall back to stderr only if the log file can't be opened
+        stream = logging.StreamHandler(sys.stderr)
+        stream.setFormatter(formatter)
+        logger.addHandler(stream)
         logger.warning("Cannot open diagnostic log %s: %s", DIAGNOSTIC_LOG, exc)
     return logger
 
 
+def open_crash_log():
+    # faulthandler writes straight to the file descriptor, so it needs its own
+    # file that stays open (the rotating log may be renamed under it).
+    try:
+        return open(CRASH_LOG, "a", encoding="utf-8")
+    except OSError:
+        logger.exception("Cannot open crash log %s; using stderr", CRASH_LOG)
+        return sys.stderr
+
+
 logger = configure_logging()
 
-faulthandler.enable(file=sys.stderr)
+crash_log = open_crash_log()
+faulthandler.enable(file=crash_log)
 if hasattr(signal, "SIGUSR1"):
-    faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True)
+    faulthandler.register(signal.SIGUSR1, file=crash_log, all_threads=True)
 
 
 class RFIDUsbApp:
