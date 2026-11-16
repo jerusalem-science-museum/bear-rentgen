@@ -67,9 +67,19 @@ python3 rentgen.py --debug    # no Reader needed
 ## Flashing the Reader
 
 1. Arduino IDE → Library Manager → install **MFRC522** (by GithubCommunity), version 1.4 or newer.
-2. Open [reader/reader.ino](reader/reader.ino), board **Arduino Leonardo** (or your Pro Micro's board package), upload.
+2. Open [reader/reader.ino](reader/reader.ino), board **SparkFun Pro Micro, ATmega32U4 (5V, 16 MHz)** (add SparkFun's board package URL `https://raw.githubusercontent.com/sparkfun/Arduino_Boards/main/IDE_Board_Manager/package_sparkfun_index.json` in Preferences, then install **SparkFun AVR Boards**), upload.
 3. Check: Arduino serial monitor shows `L boot module=ok version=0x..` and `S <id>` when you tap a tag.
 4. Once per new board, test the watchdog: temporarily add `while (1);` at the top of `loop()`, upload, and confirm the board reboots (a new `L boot` line about every 4 s). Some old Pro Micro bootloaders hang after a watchdog reset instead.
+
+### From the Pi
+
+Run `./setup_arduino_cli.sh` once: it installs `arduino-cli`, the `arduino:avr` core (compiler + avrdude), SparkFun's Pro Micro board package and the MFRC522 library. Then quit the app (Escape, it holds the port) and, from the repo folder:
+
+```bash
+arduino-cli board list                                                       # find the port
+arduino-cli compile --upload -b SparkFun:avr:promicro:cpu=16MHzatmega32U4 -p /dev/ttyACM0 reader
+arduino-cli monitor -p /dev/ttyACM0                                          # expect "L boot module=ok ...", then "S <id>" per tag; Ctrl+C exits
+```
 
 ## Raspberry Pi setup
 
