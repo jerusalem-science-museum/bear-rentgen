@@ -1,8 +1,5 @@
-# Third-party packages imported by rentgen.py / rentgen_evdev.py
-# (tkinter and the standard library are not listed; on Raspberry Pi OS,
-#  tkinter comes from the apt package python3-tk)
+# Third-party packages imported by rentgen.py. tkinter is not listed: it is
+# part of Python itself (on Raspberry Pi OS it comes from apt: python3-tk).
 
 pillow
-
-# Linux-only (reads RFID input devices); skipped on Windows so the file still installs there
-evdev; sys_platform == "linux"
+pyserial
