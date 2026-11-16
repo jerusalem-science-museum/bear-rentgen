@@ -73,11 +73,11 @@ python3 rentgen.py --debug    # no Reader needed
 
 ### From the Pi
 
-Run `./setup_arduino_cli.sh` once: it installs `arduino-cli`, the `arduino:avr` core (compiler + avrdude), SparkFun's Pro Micro board package and the MFRC522 library. Then quit the app (Escape, it holds the port) and, from the repo folder:
+Run `./setup_arduino_cli.sh` once: it installs `arduino-cli`, the `arduino:avr` core (compiler + avrdude), SparkFun's Pro Micro board package and the MFRC522 and Keyboard libraries, and adds an `ac` alias to `~/.bashrc` for `arduino-cli compile --upload -v -b SparkFun:avr:promicro:cpu=16MHzatmega32U4 -p /dev/ttyACM0`. Then quit the app (Escape, it holds the port) and, from the repo folder:
 
 ```bash
 arduino-cli board list                                                       # find the port
-arduino-cli compile --upload -v -b SparkFun:avr:promicro:cpu=16MHzatmega32U4 -p /dev/ttyACM0 reader
+ac reader                                                                    # compile + upload the reader/ sketch (open a new terminal after setup)
 arduino-cli monitor -p /dev/ttyACM0                                          # expect "L boot module=ok ...", then "S <id>" per tag; Ctrl+C exits
 ```
 

@@ -29,6 +29,13 @@ unsigned long lastReinit = 0;
 char bootReport[48];
 bool bootReportPending = true;
 
+// Pet the watchdog, except after the 1200-baud "touch" that arduino-cli sends
+// to start an upload: the core then arms a 120 ms watchdog reset into the
+// bootloader, and petting it here would cancel that reset and break uploads.
+void feedWatchdog() {
+  if (Serial.baud() != 1200) wdt_reset();
+}
+
 // Health Check: the module answers VersionReg with its chip version.
 // 0x00 / 0xFF means nothing is answering on SPI.
 bool moduleAlive(byte &version) {
@@ -39,7 +46,7 @@ bool moduleAlive(byte &version) {
 // Module Reinit, retried a few times. Returns the final version byte.
 bool reinitModule(byte &version, uint8_t &attempts) {
   for (attempts = 1; attempts <= REINIT_ATTEMPTS; attempts++) {
-    wdt_reset();
+    feedWatchdog();
     rfid.PCD_Init();
     delay(4);  // some modules need a moment after init
     if (moduleAlive(version)) return true;
@@ -89,7 +96,7 @@ void setup() {
 }
 
 void loop() {
-  wdt_reset();
+  feedWatchdog();
   unsigned long now = millis();
 
   // The Pi usually opens the port a few seconds after boot; hold the boot
