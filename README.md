@@ -26,6 +26,8 @@ The Reader is a USB serial device (not a keyboard). It sends plain text lines:
 
 Anything sent while the Pi doesn't have the port open is lost; the Reader never waits for the Pi.
 
+After a Scan the Reader doesn't look for tags for 400 ms (`SCAN_COOLDOWN_MS`), so a tag at the edge of the field, or next to another tag, isn't re-read over and over.
+
 ## How the Reader looks after itself
 
 The weak point is the RFID module, which can go deaf while the Arduino keeps running. The firmware handles that on its own:

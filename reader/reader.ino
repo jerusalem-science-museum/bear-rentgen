@@ -19,6 +19,9 @@ const unsigned long HEALTH_CHECK_MS = 5000UL;
 const unsigned long PERIODIC_REINIT_MS = 10UL * 60UL * 1000UL;
 const uint8_t REINIT_ATTEMPTS = 3;
 const unsigned int BEEP_MS = 200;
+// After a Scan, don't look for tags for this long: a tag at the edge of the
+// field, or next to another tag, would otherwise be re-read over and over.
+const unsigned long SCAN_COOLDOWN_MS = 400UL;
 
 // The module's RST pin is wired to the Pro Micro's RST, not to a GPIO, so
 // the library can't hard-reset it; PCD_Init() falls back to a soft reset.
@@ -26,6 +29,7 @@ MFRC522 rfid(SS_PIN, MFRC522::UNUSED_PIN);
 
 unsigned long lastHealthCheck = 0;
 unsigned long lastReinit = 0;
+unsigned long lastScan = 0;
 char bootReport[48];
 bool bootReportPending = true;
 
@@ -114,9 +118,11 @@ void loop() {
     if (!moduleAlive(version)) reportReinit("check_failed", version);
   }
 
-  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
+  if (millis() - lastScan >= SCAN_COOLDOWN_MS &&
+      rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
     sendScan(rfid.uid.uidByte);
     beep();
+    lastScan = millis();
     rfid.PICC_HaltA();  // put this tag to sleep so it isn't scanned again until it's lifted off
     rfid.PCD_StopCrypto1();  // Stop encryption on PCD
   }
