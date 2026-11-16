@@ -77,7 +77,7 @@ Run `./setup_arduino_cli.sh` once: it installs `arduino-cli`, the `arduino:avr` 
 
 ```bash
 arduino-cli board list                                                       # find the port
-arduino-cli compile --upload -b SparkFun:avr:promicro:cpu=16MHzatmega32U4 -p /dev/ttyACM0 reader
+arduino-cli compile --upload -v -b SparkFun:avr:promicro:cpu=16MHzatmega32U4 -p /dev/ttyACM0 reader
 arduino-cli monitor -p /dev/ttyACM0                                          # expect "L boot module=ok ...", then "S <id>" per tag; Ctrl+C exits
 ```
 

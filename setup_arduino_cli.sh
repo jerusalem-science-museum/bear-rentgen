@@ -8,7 +8,7 @@
 #
 # Then, to flash from the repo folder (quit the app first with Escape, it holds
 # the serial port):
-#   arduino-cli compile --upload -b SparkFun:avr:promicro:cpu=16MHzatmega32U4 -p /dev/ttyACM0 reader
+#   arduino-cli compile --upload -v -b SparkFun:avr:promicro:cpu=16MHzatmega32U4 -p /dev/ttyACM0 reader
 # =============================================================================
 
 set -euo pipefail
@@ -52,5 +52,5 @@ echo ""
 echo "Done. To flash the Reader:"
 echo "  1. Quit the app (Escape)."
 echo "  2. arduino-cli board list          # find the port, usually /dev/ttyACM0"
-echo "  3. arduino-cli compile --upload -b SparkFun:avr:promicro:cpu=16MHzatmega32U4 -p /dev/ttyACM0 reader"
+echo "  3. arduino-cli compile --upload -v -b SparkFun:avr:promicro:cpu=16MHzatmega32U4 -p /dev/ttyACM0 reader"
 echo "  4. arduino-cli monitor -p /dev/ttyACM0   # expect 'L boot module=ok ...', Ctrl+C to exit"
