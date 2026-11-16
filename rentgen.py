@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent
 BACKGROUND_IMAGE = BASE_DIR / "background.png"
 SCAN_IMAGE = BASE_DIR / "scan_result.png"
 LOG_FILE = BASE_DIR / "rentgen.log"
-SCAN_RESULT_MS = 7000
+SCAN_RESULT_MS = 10000
 PORT_RETRY_S = 2
 DEBUG_WINDOW = (960, 540)
 

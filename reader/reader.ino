@@ -21,7 +21,7 @@ const uint8_t REINIT_ATTEMPTS = 3;
 const unsigned int BEEP_MS = 200;
 // After a Scan, don't look for tags for this long: a tag at the edge of the
 // field, or next to another tag, would otherwise be re-read over and over.
-const unsigned long SCAN_COOLDOWN_MS = 400UL;
+const unsigned long SCAN_COOLDOWN_MS = 1000UL;
 
 // The module's RST pin is wired to the Pro Micro's RST, not to a GPIO, so
 // the library can't hard-reset it; PCD_Init() falls back to a soft reset.
