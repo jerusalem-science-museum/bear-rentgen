@@ -45,3 +45,5 @@ desktop.ini
 *.local.json
 logs/*
 !logs/.keep
+# Exhibit data (stays on the Pi, not in git)
+rfid_log.txt
