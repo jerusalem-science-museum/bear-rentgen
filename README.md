@@ -4,6 +4,30 @@ A science-museum "X-ray" exhibit. A visitor holds a tagged object to the reader;
 
 Terms used here (Reader, Scan, Health Check, Module Reinit, Reader Report, ...) are defined in [GLOSSARY.md](GLOSSARY.md).
 
+## Quick setup (Raspberry Pi)
+
+On a fresh Raspberry Pi OS with internet:
+
+```bash
+git clone https://github.com/jerusalem-science-museum/bear-rentgen.git
+cd bear-rentgen
+./setup_gui_rpi.sh            # venv, serial access, AnyDesk, autologin, autostart (asks for an AnyDesk password)
+./setup_arduino_cli.sh        # only if you'll flash the Reader from the Pi (see below)
+sudo reboot
+```
+
+Plug the Reader into the Pi's USB. After the reboot the app starts fullscreen; tap a tag to check.
+
+**Flashing:** skip this (and `setup_arduino_cli.sh`) if the Reader was flashed beforehand, e.g. from a PC with the Arduino IDE. Otherwise, after the reboot press Escape to quit the app (it holds the serial port), then in a terminal:
+
+```bash
+cd bear-rentgen
+ac reader                     # compile + upload to /dev/ttyACM0
+sudo reboot
+```
+
+Details: [Raspberry Pi setup](#raspberry-pi-setup) and [Flashing the Reader](#flashing-the-reader).
+
 ## Hardware
 
 ```
