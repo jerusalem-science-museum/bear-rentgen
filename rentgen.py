@@ -1,253 +1,164 @@
 #!/usr/bin/env python3
-"""USB keyboard-emulating RFID kiosk for Raspberry Pi - Stable Version."""
+"""Bear Rentgen exhibit: show the X-ray when the Reader sends a Scan.
 
-import faulthandler
-import logging
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
-import signal
+See README.md for the design. Run with --debug to type reader lines into the
+terminal (e.g. "S 1234") instead of using the real Reader.
+"""
+
+import argparse
+import queue
 import sys
+import threading
 import time
 import tkinter as tk
+import traceback
 from datetime import datetime
+from pathlib import Path
 
+import serial
 from PIL import Image, ImageTk
+from serial.tools import list_ports
 
 BASE_DIR = Path(__file__).resolve().parent
 BACKGROUND_IMAGE = BASE_DIR / "background.png"
 SCAN_IMAGE = BASE_DIR / "scan_result.png"
-LOG_FILE_PATH = BASE_DIR / "rfid_log.txt"  
-DIAGNOSTIC_LOG = BASE_DIR / "rfid_diagnostics.log"
-CRASH_LOG = BASE_DIR / "rfid_crash.log"
-DISPLAY_TIME = 15000  # milliseconds
-HEARTBEAT_TIME = 5000  # milliseconds
-CARD_INPUT_TIMEOUT = 2000  # milliseconds
-MAX_CARD_LENGTH = 128
-FOCUS_RETRY_TIME = 1000  # milliseconds
+LOG_FILE = BASE_DIR / "rentgen.log"
+SCAN_RESULT_MS = 10000
+PORT_RETRY_S = 2
+DEBUG_WINDOW = (960, 540)
+
+log_to_file = True
+log_lock = threading.Lock()
 
 
-def configure_logging():
-    logger = logging.getLogger("rfid_kiosk")
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-
-    try:
-        rotating = RotatingFileHandler(
-            DIAGNOSTIC_LOG, maxBytes=1_000_000, backupCount=3, encoding="utf-8"
-        )
-        rotating.setFormatter(formatter)
-        logger.addHandler(rotating)
-    except OSError as exc:
-        # Fall back to stderr only if the log file can't be opened
-        stream = logging.StreamHandler(sys.stderr)
-        stream.setFormatter(formatter)
-        logger.addHandler(stream)
-        logger.warning("Cannot open diagnostic log %s: %s", DIAGNOSTIC_LOG, exc)
-    return logger
+def log(kind, text):
+    """Append one line to rentgen.log: timestamp, kind (SCAN/READER/INFO/ERROR), text."""
+    line = f"{datetime.now():%Y-%m-%d %H:%M:%S} {kind:<6} {text}\n"
+    with log_lock:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        if log_to_file:
+            try:
+                with open(LOG_FILE, "a", encoding="utf-8") as f:
+                    f.write(line)
+            except OSError as exc:
+                sys.stderr.write(f"cannot write {LOG_FILE}: {exc}\n")
 
 
-def open_crash_log():
-    # faulthandler writes straight to the file descriptor, so it needs its own
-    # file that stays open (the rotating log may be renamed under it).
-    try:
-        return open(CRASH_LOG, "a", encoding="utf-8")
-    except OSError:
-        logger.exception("Cannot open crash log %s; using stderr", CRASH_LOG)
-        return sys.stderr
+def log_exception(exc_type, exc, tb):
+    log("ERROR", "".join(traceback.format_exception(exc_type, exc, tb)).rstrip())
 
 
-logger = configure_logging()
+def reader_lines():
+    """Yield lines from the Reader forever, reconnecting whenever it disappears."""
+    missing_logged = False
+    while True:
+        # Only one USB serial device is attached: the Reader.
+        port = next((p.device for p in list_ports.comports() if p.vid is not None), None)
+        if port is None:
+            if not missing_logged:
+                log("INFO", "reader not found, retrying")
+                missing_logged = True
+        else:
+            missing_logged = False
+            try:
+                # The Reader's serial runs over native USB, so the baud rate is
+                # ignored; just never use 1200, which reboots it into its bootloader.
+                with serial.Serial(port, 9600) as conn:
+                    log("INFO", f"reader connected on {port}")
+                    for raw in conn:
+                        yield raw.decode("ascii", "replace").strip()
+            except (serial.SerialException, OSError) as exc:
+                log("INFO", f"reader lost on {port}: {exc}")
+        time.sleep(PORT_RETRY_S)
 
-crash_log = open_crash_log()
-faulthandler.enable(file=crash_log)
-if hasattr(signal, "SIGUSR1"):
-    faulthandler.register(signal.SIGUSR1, file=crash_log, all_threads=True)
+
+def terminal_lines():
+    for line in sys.stdin:
+        yield line.strip()
 
 
-class RFIDUsbApp:
-    def __init__(self, root):
+class Exhibit:
+    def __init__(self, root, debug):
         self.root = root
-        self.root.title("RFID USB Kiosk")
-        self.log_filename = LOG_FILE_PATH
-        self.root.report_callback_exception = self.report_callback_exception
+        if debug:
+            size = DEBUG_WINDOW
+            root.geometry(f"{size[0]}x{size[1]}")
+        else:
+            size = (root.winfo_screenwidth(), root.winfo_screenheight())
+            root.attributes("-fullscreen", True)
+            root.config(cursor="none")
+        self.background = self.load(BACKGROUND_IMAGE, size)
+        self.scan_result = self.load(SCAN_IMAGE, size)
+        self.screen = tk.Label(root, image=self.background, bd=0, bg="black")
+        self.screen.pack(fill="both", expand=True)
+        self.back_timer = None
+        self.lines = queue.Queue()
+        root.bind("<Escape>", lambda _e: root.destroy())
 
-        self.root.attributes("-fullscreen", True)
-        
-        # שינוי: הגדרת הקנבס כך שיהיה מסוגל לקבל פוקוס ישיר מהמקלדת
-        self.canvas = tk.Canvas(root, highlightthickness=0, takefocus=1)
-        self.canvas.pack(fill="both", expand=True)
-        self.screen_width = self.root.winfo_screenwidth()
-        self.screen_height = self.root.winfo_screenheight()
+    @staticmethod
+    def load(path, size):
+        with Image.open(path) as img:
+            return ImageTk.PhotoImage(img.resize(size, Image.Resampling.LANCZOS))
 
-        self.bg_image = self.load_and_resize(BACKGROUND_IMAGE)
-        self.scan_image = self.load_and_resize(SCAN_IMAGE)
-        self.image_on_canvas = self.canvas.create_image(
-            0, 0, anchor="nw", image=self.bg_image
-        )
+    def poll(self):
+        """Handle lines queued by the reader thread (Tk is only touched here)."""
+        while not self.lines.empty():
+            self.handle(self.lines.get())
+        self.root.after(50, self.poll)
 
-        self.card_buffer = ""
-        self.card_timer_id = None
-        self.is_showing_scan = False
-        self.timer_id = None
-        self.scan_display_started = None
-        self.focus_missing = False
+    def handle(self, line):
+        kind, _, rest = line.partition(" ")
+        if kind == "S" and rest:
+            log("SCAN", rest)
+            self.show_scan_result()
+        elif kind == "L":
+            log("READER", rest)
+        elif line:
+            log("INFO", f"unknown line from reader: {line!r}")
 
-        # מאזינים לאירועים
-        self.root.bind_all("<KeyPress>", self.on_key_press)
-        self.root.bind("<FocusIn>", self.on_focus_in)
-        self.root.bind("<FocusOut>", self.on_focus_out)
-        
-        # הפעלת לולאות בדיקה יזומות
-        self.root.after(FOCUS_RETRY_TIME, self.check_focus)
-        self.root.after(HEARTBEAT_TIME, self.heartbeat)
-        self.root.after(250, self.request_focus)
-        logger.info("Kiosk started; display %sx%s", self.screen_width, self.screen_height)
+    def show_scan_result(self):
+        # A new Scan while the result is showing restarts the timer.
+        self.screen.config(image=self.scan_result)
+        if self.back_timer is not None:
+            self.root.after_cancel(self.back_timer)
+        self.back_timer = self.root.after(SCAN_RESULT_MS, self.show_background)
 
-    def report_callback_exception(self, exc_type, exc_value, exc_traceback):
-        logger.error("Tkinter callback exception", exc_info=(exc_type, exc_value, exc_traceback))
+    def show_background(self):
+        self.screen.config(image=self.background)
+        self.back_timer = None
 
-    def load_and_resize(self, image_path):
-        with Image.open(image_path) as img:
-            resized = img.resize(
-                (self.screen_width, self.screen_height), Image.Resampling.LANCZOS
-            )
-            return ImageTk.PhotoImage(resized)
 
-    def request_focus(self):
-        try:
-            self.root.lift()
-            self.root.focus_force()  
-            self.canvas.focus_set()  # תיקון: הבטחת פוקוס פנימי לקנבס שמקשיב למקלדת
-        except tk.TclError:
-            logger.exception("Could not restore keyboard focus")
+def main():
+    global log_to_file
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--debug", action="store_true",
+                        help="windowed; read reader lines from the terminal; don't write rentgen.log")
+    args = parser.parse_args()
+    log_to_file = not args.debug
+    threading.excepthook = lambda a: log_exception(a.exc_type, a.exc_value, a.exc_traceback)
 
-    def on_focus_in(self, _event):
-        if self.focus_missing:
-            logger.info("Keyboard focus restored - Resetting buffer for safety")
-            self.focus_missing = False
-            self.reset_card_buffer("focus restored")  # תיקון: ניקוי תווים תקועים בזמן הניתוק
+    root = tk.Tk()
+    root.title("Bear Rentgen")
+    root.report_callback_exception = log_exception
+    exhibit = Exhibit(root, args.debug)
 
-    def on_focus_out(self, _event):
-        self.root.after(200, self.check_focus_once)
+    def pump(source):
+        for line in source():
+            exhibit.lines.put(line)
 
-    def check_focus_once(self):
-        if self.root.focus_displayof() is None and not self.focus_missing:
-            self.focus_missing = True
-            logger.warning("Keyboard focus lost; RFID input may be missed")
+    source = terminal_lines if args.debug else reader_lines
+    threading.Thread(target=pump, args=(source,), daemon=True).start()
+    exhibit.poll()
 
-    def check_focus(self):
-        try:
-            if self.root.focus_displayof() is None:
-                if not self.focus_missing:
-                    self.focus_missing = True
-                    logger.warning("Keyboard focus lost; attempting recovery")
-                self.request_focus()
-            elif self.focus_missing:
-                self.focus_missing = False
-                logger.info("Keyboard focus restored")
-                self.reset_card_buffer("focus restored loop")
-        finally:
-            self.root.after(FOCUS_RETRY_TIME, self.check_focus)
-
-    def reset_card_buffer(self, reason):
-        if self.card_timer_id is not None:
-            self.root.after_cancel(self.card_timer_id)
-            self.card_timer_id = None
-        if self.card_buffer:
-            logger.warning("Discarding incomplete RFID input (%s, length=%d)",
-                           reason, len(self.card_buffer))
-        self.card_buffer = ""
-
-    def card_input_expired(self):
-        self.card_timer_id = None
-        if self.card_buffer:
-            logger.warning("Discarding incomplete RFID input after timeout (length=%d)",
-                           len(self.card_buffer))
-            self.card_buffer = ""
-
-    def on_key_press(self, event):
-        if event.keysym == "Escape":
-            logger.info("Escape pressed; closing kiosk")
-            self.root.destroy()
-            return
-
-        # תיקון: במקום להתעלם מסריקות בזמן שהמסך מוצג, אנחנו מאפשרים סריקה חדשה
-        # זה מונע מצב שבו תג שנשאר קרוב לקורא תוקע את כל המערכת.
-
-        if event.keysym in ("Return", "KP_Enter"):
-            if not self.card_buffer:
-                logger.debug("Enter received with an empty buffer")
-                return
-            card_id = self.card_buffer
-            self.reset_card_buffer("completed scan")
-            logger.info("RFID scan completed (length=%d)", len(card_id))
-            self.log_card_scan(card_id)
-            self.show_scan_image()
-            return
-
-        if event.char and event.char.isprintable():
-            self.card_buffer += event.char
-            if len(self.card_buffer) > MAX_CARD_LENGTH:
-                self.reset_card_buffer("maximum card length exceeded")
-                return
-            if self.card_timer_id is not None:
-                self.root.after_cancel(self.card_timer_id)
-            self.card_timer_id = self.root.after(
-                CARD_INPUT_TIMEOUT, self.card_input_expired
-            )
-
-    def log_card_scan(self, card_id):
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_entry = f"[{current_time}] Scanned Card ID: {card_id}\n"
-        try:
-            with open(self.log_filename, "a", encoding="utf-8") as file:
-                file.write(log_entry)
-        except OSError:
-            logger.exception("Failed to append card scan to %s", self.log_filename)
-
-    def show_scan_image(self):
-        logger.info("Displaying scan result for %d milliseconds", DISPLAY_TIME)
-        self.canvas.itemconfig(self.image_on_canvas, image=self.scan_image)
-        self.is_showing_scan = True
-        self.scan_display_started = time.monotonic()
-        if self.timer_id is not None:
-            self.root.after_cancel(self.timer_id)
-        self.timer_id = self.root.after(DISPLAY_TIME, self.show_background_image)
-
-    def show_background_image(self):
-        self.canvas.itemconfig(self.image_on_canvas, image=self.bg_image)
-        self.is_showing_scan = False
-        self.timer_id = None
-        self.scan_display_started = None
-        logger.info("Background image restored; ready for next scan")
-
-    def heartbeat(self):
-        scan_seconds = (
-            round(time.monotonic() - self.scan_display_started, 1)
-            if self.scan_display_started is not None else 0
-        )
-        logger.info("HEARTBEAT focus=%s showing_scan=%s scan_elapsed=%.1fs buffer_len=%d",
-                    self.root.focus_displayof(), self.is_showing_scan,
-                    scan_seconds, len(self.card_buffer))
-        
-        # מנגנון הגנה אקטיבי: אם החלון איבד פוקוס בזמן ה-Heartbeat, נדחוף אותו חזרה לחזית
-        if self.root.focus_displayof() is None:
-            self.request_focus()
-
-        if self.is_showing_scan and scan_seconds > (DISPLAY_TIME / 1000) + 5:
-            logger.warning("Scan image displayed longer than expected - forcing reset")
-            self.show_background_image() # תיקון: מונע מסך תקוע לנצח
-            
-        self.root.after(HEARTBEAT_TIME, self.heartbeat)
+    log("INFO", "started" + (" (debug)" if args.debug else ""))
+    try:
+        root.mainloop()
+    except Exception:
+        log_exception(*sys.exc_info())
+        raise
+    log("INFO", "stopped")
 
 
 if __name__ == "__main__":
-    try:
-        root = tk.Tk()
-        root.config(cursor="none")
-        app = RFIDUsbApp(root)
-        root.mainloop()
-    except Exception:
-        logger.exception("Uncaught fatal error")
-        raise
+    main()

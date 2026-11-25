@@ -54,6 +54,7 @@ sudo apt-get install -y \
     python3 \
     python3-venv \
     python3-pip \
+    python3-tk \
     tmux \
     unclutter
     # Add any other apt packages your project needs, e.g.:
@@ -62,6 +63,10 @@ sudo apt-get install -y \
     # ffmpeg
 
 echo "  ✓ System packages installed"
+
+# The app reads the RFID reader's USB serial port, which needs the dialout group.
+sudo usermod -aG dialout "$USER"
+echo "  ✓ $USER can open serial ports (dialout group)"
 
 # --- 2. AnyDesk ---------------------------------------------------------------
 echo ""
